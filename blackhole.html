@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontend Black Hole</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050508; /* Темний космічний фон */
+            color: white;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="space"></canvas>
+
+    <script>
+        const canvas = document.getElementById('space');
+        const ctx = canvas.getContext('2d');
+
+        let width, height, centerX, centerY;
+        
+        // Константи з вашого скріншота
+        const EVENT_HORIZON = 50; 
+        const GRAVITY_RADIUS = 350;
+        
+        const particles = [];
+        const NUM_PARTICLES = 2000; // Кількість частинок-літер
+        
+        // Палітра кольорів (фіолетовий, помаранчевий, білий як на відео)
+        const colors = ['#ff8800', '#ffaa00', '#aa00ff', '#5500aa', '#ffffff', '#8888ff'];
+        const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            centerX = width / 2;
+            centerY = height / 2;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        class Particle {
+            constructor() {
+                this.reset(true);
+            }
+
+            reset(initial = false) {
+                // Випадкова позиція
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                
+                // Якщо не ініціалізація, з'являємось десь на краях екрану
+                if (!initial) {
+                    if (Math.random() > 0.5) {
+                        this.x = Math.random() > 0.5 ? 0 : width;
+                        this.y = Math.random() * height;
+                    } else {
+                        this.x = Math.random() * width;
+                        this.y = Math.random() > 0.5 ? 0 : height;
+                    }
+                }
+
+                // Початкова швидкість (дрейф)
+                this.vx = (Math.random() - 0.5) * 1.5;
+                this.vy = (Math.random() - 0.5) * 1.5;
+                
+                this.char = chars[Math.floor(Math.random() * chars.length)];
+                this.color = colors[Math.floor(Math.random() * colors.length)];
+                this.baseSize = Math.random() * 8 + 4;
+            }
+
+            update() {
+                // Вектор до центру (чорної діри)
+                let dx = centerX - this.x;
+                let dy = centerY - this.y;
+                let dist = Math.hypot(dx, dy);
+
+                // Базова гравітація - тягне до центру, якщо частинка близько
+                if (dist < GRAVITY_RADIUS * 2) {
+                    let force = 150 / (dist * dist); 
+                    let angle = Math.atan2(dy, dx);
+                    
+                    // Пряме тяжіння
+                    this.vx += Math.cos(angle) * force;
+                    this.vy += Math.sin(angle) * force;
+                    
+                    // Закручування (орбітальна швидкість)
+                    this.vx += Math.cos(angle + Math.PI / 2) * force * 1.2;
+                    this.vy += Math.sin(angle + Math.PI / 2) * force * 1.2;
+                }
+
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Якщо частинка впала за горизонт подій - перероджуємо її
+                if (dist < EVENT_HORIZON * 0.4) {
+                    this.reset();
+                }
+            }
+
+            draw() {
+                let dx = centerX - this.x;
+                let dy = centerY - this.y;
+                let dist = Math.hypot(dx, dy);
+
+                let sx = this.x;
+                let sy = this.y;
+                let sizeMultiplier = 1;
+                let alpha = 1;
+
+                // ==========================================
+                // ТОЙ САМИЙ КОД ЗІ СКРІНШОТА
+                // ==========================================
+                if (dist < GRAVITY_RADIUS * 1.5 && dist > EVENT_HORIZON * 0.5) {
+                    const lensStrength = 1 - dist / (GRAVITY_RADIUS * 1.5);
+                    const angle = Math.atan2(dy, dx);
+                    const tangent = angle + Math.PI / 2;
+
+                    // Зсув позиції зірки вздовж тангенса -> симуляція викривлення світла
+                    sx += Math.cos(tangent) * lensStrength * 60; // Трохи збільшив множник для ефектності
+                    sy += Math.sin(tangent) * lensStrength * 60;
+
+                    // Біля горизонту подій - посилення яскравості (Кільце Ейнштейна)
+                    if (dist < EVENT_HORIZON * 2.5) {
+                        sizeMultiplier = 1 + (1 - dist / (EVENT_HORIZON * 2.5)) * 3;
+                    }
+                }
+                // ==========================================
+
+                // Затухання при перетині горизонту подій, щоб центр був чорним
+                if (dist < EVENT_HORIZON) {
+                    alpha = Math.max(0, dist / EVENT_HORIZON - 0.2);
+                }
+
+                // Малюємо літеру
+                ctx.globalAlpha = alpha;
+                ctx.fillStyle = this.color;
+                ctx.font = `${this.baseSize * sizeMultiplier}px monospace`;
+                ctx.fillText(this.char, sx, sy);
+                ctx.globalAlpha = 1;
+            }
+        }
+
+        // Ініціалізація
+        for (let i = 0; i < NUM_PARTICLES; i++) {
+            particles.push(new Particle());
+        }
+
+        // Цикл анімації
+        function animate() {
+            // Очищення екрану з ефектом легкого шлейфу
+            ctx.fillStyle = 'rgba(5, 5, 8, 0.3)';
+            ctx.fillRect(0, 0, width, height);
+
+            // Малюємо саму чорну діру (абсолютна темрява в центрі)
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, EVENT_HORIZON * 0.8, 0, Math.PI * 2);
+            ctx.fillStyle = 'black';
+            ctx.fill();
+
+            // Оновлюємо та малюємо всі частинки
+            for (let p of particles) {
+                p.update();
+                p.draw();
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+    </script>
+</body>
+</html>
